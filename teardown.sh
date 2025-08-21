@@ -1,13 +1,8 @@
 #!/bin/bash
 
-# This script deletes the resource group and the Entra ID Service Principal.
-
-# --- Configuration ---
 RESOURCE_GROUP="my-keyvault-rg"
-# The appId (Client ID) of the service principal you want to delete.
 APP_ID_TO_DELETE=$1
 
-# --- Script ---
 if [ -z "$APP_ID_TO_DELETE" ]; then
   echo "❌ Error: Please provide the appId of the Service Principal as the first argument."
   echo "Usage: ./teardown.sh <your-app-id>"
