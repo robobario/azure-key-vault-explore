@@ -1,29 +1,38 @@
-// Bicep template to deploy a Key Vault with an RSA key and an access policy
-// for a specific application identity (Service Principal).
+// Bicep template that creates a custom RBAC role for specific Key Vault key actions
+// and assigns it to a service principal.
 
 // PARAMETERS
-// The unique name for your Key Vault. Must be globally unique.
+@description('The unique name for your Key Vault. Must be globally unique.')
 param keyVaultName string = 'kv-${uniqueString(resourceGroup().id)}'
 
-// The name for the RSA key inside the vault.
+@description('The name for the RSA key inside the vault.')
 param keyName string = 'my-app-wrapping-key'
 
-// The location for the resources, defaults to the resource group's location.
+@description('The location for the resources, defaults to the resource group\'s location.')
 param location string = resourceGroup().location
 
-// The unique Object ID of the app's Service Principal from Entra ID.
-// This will be provided by the deployment script.
 @description('The Object ID of the Microsoft Entra application (Service Principal) that needs access.')
 param appObjectId string
 
 
 // VARIABLES
-// The tenant ID where the Key Vault and the app identity exist.
-var tenantId = subscription().tenantId
+@description('A unique name for the custom role.')
+var customRoleName = 'Custom Key Vault Key Wrapper'
+
+
+// MODULE
+// Deploy the custom role definition at the subscription scope.
+module roleDefinitionModule 'customRole.bicep' = {
+  name: 'customRoleDeployment' // A unique name for the deployment operation
+  scope: subscription() // This tells Bicep to deploy the module to the subscription.
+  params: {
+    customRoleName: customRoleName
+  }
+}
 
 
 // RESOURCES
-// 1. The Azure Key Vault resource.
+// 1. The Azure Key Vault resource, deployed to the resource group.
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: keyVaultName
   location: location
@@ -32,25 +41,12 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
       family: 'A'
       name: 'standard'
     }
-    tenantId: tenantId
-    enableRbacAuthorization: false // Using legacy access policies as requested.
-    accessPolicies: [
-      {
-        tenantId: tenantId
-        objectId: appObjectId // Granting access to your application.
-        permissions: {
-          keys: [
-            'get' // 'get' is often needed to retrieve key properties before use.
-            'wrapKey'
-            'unwrapKey'
-          ]
-        }
-      }
-    ]
+    tenantId: subscription().tenantId
+    enableRbacAuthorization: true
   }
 }
 
-// 2. The RSA Key resource, configured for wrap/unwrap operations.
+// 2. The RSA Key resource.
 resource rsaKey 'Microsoft.KeyVault/vaults/keys@2023-07-01' = {
   parent: keyVault
   name: keyName
@@ -64,8 +60,23 @@ resource rsaKey 'Microsoft.KeyVault/vaults/keys@2023-07-01' = {
   }
 }
 
+// 3. The Role Assignment.
+// This assigns the custom role (from the module) to the service principal.
+resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  // CORRECTED: The name is now generated using the customRoleName variable,
+  // which is known before the deployment starts.
+  name: guid(keyVault.id, appObjectId, customRoleName)
+  scope: keyVault
+  properties: {
+    // Get the role ID from the module's output. This is fine here.
+    roleDefinitionId: roleDefinitionModule.outputs.customRoleId
+    principalId: appObjectId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 
 // OUTPUTS
-// Useful information about the deployed resources.
 output keyVaultUri string = keyVault.properties.vaultUri
 output keyId string = rsaKey.id
+output customRoleId string = roleDefinitionModule.outputs.customRoleId

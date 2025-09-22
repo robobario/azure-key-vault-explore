@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RESOURCE_GROUP="my-keyvault-rg"
+RESOURCE_GROUP="my-keyvault-rg3"
 LOCATION="eastus"
 APP_IDENTITY_NAME="my-secure-webapp-$(openssl rand -hex 4)"
 

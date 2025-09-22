@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RESOURCE_GROUP="my-keyvault-rg"
+RESOURCE_GROUP="my-keyvault-rg3"
 APP_ID_TO_DELETE=$1
 
 if [ -z "$APP_ID_TO_DELETE" ]; then
